@@ -5,6 +5,9 @@ if (!defined('_PS_VERSION_')) {
 
 class Od_send_email extends Module
 {
+
+    private $fields_values;
+
     public function __construct()
     {
         $this->name = 'od_send_email';
@@ -28,6 +31,11 @@ class Od_send_email extends Module
         if (!Configuration::get('MYMODULE_NAME')) {
             $this->warning = $this->l('No name provided');
         }
+
+        $this->fields_values = [
+            '_OD_SEND_EMAIL_1_' => $this->l('Remitente'),
+            '_OD_SEND_EMAIL_2_' => $this->l('Receptor')
+        ];
     }
 
     public function install()
@@ -47,24 +55,94 @@ class Od_send_email extends Module
 
     public function getContent()
     {
-        $output = '';
-        if (Tools::isSubmit('submit' . $this->name)) {
-            $mail1 = (string) Tools::getValue('_OD_SEND_EMAIL_1_', '');
-            $mail2 = (string) Tools::getValue('_OD_SEND_EMAIL_2_', '');
-            if (empty($mail1) || !Validate::isEmail($mail1) || empty($mail2) || !Validate::isEmail($mail2)) {
-                $output = $this->displayError($this->l('Error al enviar el correo'));
-            } else {
-                Configuration::updateValue('_OD_SEND_EMAIL_1_', $mail1);
-                Configuration::updateValue('_OD_SEND_EMAIL_2_', $mail2);
-                $output = $this->displayConfirmation($this->l('Correo enviado'));
-            }
+        return $this->postProcess() . $this->displayForm();
+    }
+
+    /**
+     * Post process
+     * 
+     * @return string error
+     */
+    public function postProcess(): string
+    {
+        if (!Tools::isSubmit('submit' . $this->name)) {
+            return '';
         }
-        return $output . $this->displayForm();
+
+        $result = $this->updateFieldsValue();
+        if (!empty($result)) {
+            return $result;
+        }
+
+        // TODO enviar email y control de errores
+
+        return $this->mailSender();
+    }
+
+    /**
+     * Update fields value
+     * 
+     * @return string error
+     */
+    public function updateFieldsValue(): string
+    {
+        foreach ($this->fields_values as $key => $value) {
+            if ($this->validateMail($key)) {
+                continue;
+            }
+
+            return $this->displayError($this->l('Error al actualizar ' . $value));
+        }
+
+        return '';
+    }
+
+    /**
+     * Check if value is corrrect and update
+     * 
+     * @param string $value is name of input mail 
+     * 
+     * @return bool
+     */
+    public function validateMail($value): bool
+    {
+        $mail = (string) Tools::getValue($value, '');
+
+        if (empty($mail) || !Validate::isEmail($mail)) {
+            return false;
+        }
+
+        return Configuration::updateValue($value, $mail);
+    }
+
+    /**
+     * 
+     */
+
+    public function mailSender()
+    {
+        if (!Mail::send(
+            3, // TODO mas idiomas  
+            'plantilla',
+            'prueba mail',
+            array(),    // este array le pasa variables al tpl en este caso no lo utilizamos porq utilizamos variables globales del tpl
+            Configuration::get('_OD_SEND_EMAIL_2_'),
+            Null,
+            Configuration::get('_OD_SEND_EMAIL_1_'),
+            Null,
+            Null,
+            Null,
+            _PS_MODULE_DIR_ . 'od_send_email/mails'
+        )) {
+            return $this->displayError($this->l('Error al realizar el envio'));
+        }
+
+        return $this->displayConfirmation($this->l('Correo enviado'));
     }
 
     public function displayForm()
     {
-        $form = [
+        $form = [[
             'form' => [
                 'legend' => [
                     'title' => $this->l('Envio de correo'),
@@ -72,14 +150,14 @@ class Od_send_email extends Module
                 'input' => [
                     [
                         'type' => 'text',
-                        'label' => $this->l('Remitente'),
+                        'label' => $this->fields_values['_OD_SEND_EMAIL_1_'],
                         'name' => '_OD_SEND_EMAIL_1_',
                         'size' => 20,
                         'required' => true,
                     ],
                     [
                         'type' => 'text',
-                        'label' => $this->l('Receptor'),
+                        'label' => $this->fields_values['_OD_SEND_EMAIL_2_'],
                         'name' => '_OD_SEND_EMAIL_2_',
                         'size' => 20,
                         'required' => true,
@@ -90,18 +168,30 @@ class Od_send_email extends Module
                     'class' => 'btn btn-default pull-right'
                 ],
             ],
-        ];
+        ]];
 
         $helper = new HelperForm();
         $helper->token = Tools::getAdminTokenLite('AdminModules');
         $helper->currentIndex = AdminController::$currentIndex . '&' . http_build_query(['configure' => $this->name]);
         $helper->submit_action = 'submit' . $this->name;
+        $helper->fields_value = $this->getFieldsValue();
 
-        $helper->fields_value = [
-            '_OD_SEND_EMAIL_1_' => Tools::getValue('_OD_SEND_EMAIL_1_', Configuration::get('_OD_SEND_EMAIL_1_')),
-            '_OD_SEND_EMAIL_2_' => Tools::getValue('_OD_SEND_EMAIL_2_', Configuration::get('_OD_SEND_EMAIL_2_'))
-        ];
+        return $helper->generateForm($form);
+    }
 
-        return $helper->generateForm([$form]);
+    /**
+     * Get fields values of helper form of configuration
+     * 
+     * @return array
+     */
+    private function getFieldsValue(): array
+    {
+        $data = [];
+
+        foreach ($this->fields_values as $key => $value) {
+            $data[$key] = Tools::getValue($key, Configuration::get($key));
+        }
+
+        return $data;
     }
 }
