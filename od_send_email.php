@@ -11,7 +11,7 @@ class Od_send_email extends Module
     public function __construct()
     {
         $this->name = 'od_send_email';
-        $this->tab = 'front_office_features'; //organizacion modulos
+        $this->tab = 'front_office_features'; // TODO invest
         $this->version = '1.0.0';
         $this->author = 'Jose Barreiro';
         $this->need_instance = 0;
@@ -33,7 +33,7 @@ class Od_send_email extends Module
         }
 
         $this->fields_values = [
-            '_OD_SEND_EMAIL_1_' => $this->l('Remitente'),
+            '_OD_SEND_EMAIL_1_' => $this->l('Remitente'), // TODO mensaje de error personalizado
             '_OD_SEND_EMAIL_2_' => $this->l('Receptor')
         ];
     }
@@ -55,15 +55,19 @@ class Od_send_email extends Module
 
     public function getContent()
     {
-        return $this->postProcess() . $this->displayForm();
+        return $this->postProcess($this->context->employee->id_lang, $this->context->employee->firstname) . $this->displayForm();
     }
 
     /**
      * Post process
      * 
-     * @return string error
+     * @param int $lang
+     * @param string $name of employee or customer
+     * 
+     * @return string
      */
-    public function postProcess(): string
+    
+    public function postProcess($lang, $name): string
     {
         if (!Tools::isSubmit('submit' . $this->name)) {
             return '';
@@ -74,9 +78,7 @@ class Od_send_email extends Module
             return $result;
         }
 
-        // TODO enviar email y control de errores
-
-        return $this->mailSender();
+        return $this->mailSender($lang, $name);
     }
 
     /**
@@ -84,6 +86,7 @@ class Od_send_email extends Module
      * 
      * @return string error
      */
+
     public function updateFieldsValue(): string
     {
         foreach ($this->fields_values as $key => $value) {
@@ -104,6 +107,7 @@ class Od_send_email extends Module
      * 
      * @return bool
      */
+
     public function validateMail($value): bool
     {
         $mail = (string) Tools::getValue($value, '');
@@ -116,16 +120,21 @@ class Od_send_email extends Module
     }
 
     /**
+     * send mail
      * 
+     * @param int $lang 
+     * @param string $name of employee customer
+     * 
+     * @return string
      */
 
-    public function mailSender()
+    public function mailSender($lang, $name): string
     {
         if (!Mail::send(
-            3, // TODO mas idiomas  
+            $lang,
             'plantilla',
             'prueba mail',
-            array(),    // este array le pasa variables al tpl en este caso no lo utilizamos porq utilizamos variables globales del tpl
+            array('{$name}' => $name),    // este array le pasa variables al tpl en este caso no lo utilizamos porq utilizamos variables globales del tpl
             Configuration::get('_OD_SEND_EMAIL_2_'),
             Null,
             Configuration::get('_OD_SEND_EMAIL_1_'),
@@ -184,6 +193,7 @@ class Od_send_email extends Module
      * 
      * @return array
      */
+
     private function getFieldsValue(): array
     {
         $data = [];
