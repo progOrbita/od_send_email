@@ -28,29 +28,31 @@ class Od_send_email extends Module
 
         $this->confirmUninstall = $this->l('Are you sure you want to uninstall?');
 
-        if (!Configuration::get('MYMODULE_NAME')) {
-            $this->warning = $this->l('No name provided');
-        }
-
         $this->fields_values = [
-            '_OD_SEND_EMAIL_1_' => $this->l('Remitente'), // TODO mensaje de error personalizado
-            '_OD_SEND_EMAIL_2_' => $this->l('Receptor')
+            '_OD_SEND_EMAIL_1_' => [
+                'translate' => $this->l('Remitente'),
+                'default' => 'web.orbitadigital@gmail.com'
+            ],
+            '_OD_SEND_EMAIL_2_' => [
+                'translate' => $this->l('Receptor'),
+                'default' => 'web.orbitadigital@gmail.com'
+            ]
         ];
     }
 
     public function install()
     {
         return parent::install()
-            && $this->registerHook('displayLeftColumn')
             && $this->registerHook('actionFrontControllerSetMedia')
             && $this->registerHook('actionAdminControllerSetMedia')
-            && Configuration::updateValue('MYMODULE_NAME', 'mailing');
+            && $this->registerHook('displayCustomerAccount')
+            && empty($this->updateFieldsValue());
     }
 
     public function uninstall()
     {
         return parent::uninstall()
-            && Configuration::deleteByName('MYMODULE_NAME');
+            && $this->deleteFieldsValue();
     }
 
     public function getContent()
@@ -66,7 +68,6 @@ class Od_send_email extends Module
      * 
      * @return string
      */
-    
     public function postProcess($lang, $name): string
     {
         if (!Tools::isSubmit('submit' . $this->name)) {
@@ -82,19 +83,36 @@ class Od_send_email extends Module
     }
 
     /**
+     * Delete fields value
+     * 
+     * @return bool
+     */
+    public function deleteFieldsValue(): bool
+    {
+        foreach ($this->fields_values as $key => $value) {
+            if (Configuration::deleteByName($key)) {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Update fields value
      * 
      * @return string error
      */
-
     public function updateFieldsValue(): string
     {
         foreach ($this->fields_values as $key => $value) {
-            if ($this->validateMail($key)) {
+            if ($this->validateMail($key, $value['default'])) {
                 continue;
             }
 
-            return $this->displayError($this->l('Error al actualizar ' . $value));
+            return $this->displayError($this->l('Error al actualizar ' . $value['translate']));
         }
 
         return '';
@@ -103,14 +121,14 @@ class Od_send_email extends Module
     /**
      * Check if value is corrrect and update
      * 
-     * @param string $value is name of input mail 
+     * @param string $value is name of input mail
+     * @param string $default
      * 
      * @return bool
      */
-
-    public function validateMail($value): bool
+    public function validateMail($value, $default = ''): bool
     {
-        $mail = (string) Tools::getValue($value, '');
+        $mail = (string) Tools::getValue($value, $default);
 
         if (empty($mail) || !Validate::isEmail($mail)) {
             return false;
@@ -159,14 +177,14 @@ class Od_send_email extends Module
                 'input' => [
                     [
                         'type' => 'text',
-                        'label' => $this->fields_values['_OD_SEND_EMAIL_1_'],
+                        'label' => $this->fields_values['_OD_SEND_EMAIL_1_']['translate'],
                         'name' => '_OD_SEND_EMAIL_1_',
                         'size' => 20,
                         'required' => true,
                     ],
                     [
                         'type' => 'text',
-                        'label' => $this->fields_values['_OD_SEND_EMAIL_2_'],
+                        'label' => $this->fields_values['_OD_SEND_EMAIL_2_']['translate'],
                         'name' => '_OD_SEND_EMAIL_2_',
                         'size' => 20,
                         'required' => true,
@@ -203,5 +221,47 @@ class Od_send_email extends Module
         }
 
         return $data;
+    }
+
+    /**
+     * Starts Front Displaying 
+     */
+
+    public function hookDisplayCustomerAccount()
+    {
+        $this->context->smarty->assign([
+            'button' => $this->l('Enviar email'),
+            'miVariable' => Context::getContext()->link->getModuleLink('od_send_email', 'sender', array())
+        ]);
+        // todo metodo para los dos hooks
+        return $this->display(__FILE__, 'od_send_email.tpl');
+    }
+
+    public function hookActionFrontControllerSetMedia()
+    {
+        dump($this->context->controller->php_self);
+        if ($this->context->controller->php_self != "my-account") {
+            return;
+        }
+
+        $this->context->controller->registerStylesheet(
+            'od_send_email-style',
+            $this->_path . 'views/css/od_send_email.css',
+            [
+                'server' => 'remote',
+                'media' => 'all',
+                'priority' => 1000,
+            ]
+        );
+
+        $this->context->controller->registerJavascript(
+            'od_send_email-javascript',
+            $this->_path . 'views/js/od_send_email.js',
+            [
+                'server' => 'remote',
+                'position' => 'bottom',
+                'priority' => 1000,
+            ]
+        );
     }
 }
