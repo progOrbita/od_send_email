@@ -46,6 +46,7 @@ class Od_send_email extends Module
             && $this->registerHook('actionFrontControllerSetMedia')
             && $this->registerHook('actionAdminControllerSetMedia')
             && $this->registerHook('displayCustomerAccount')
+            && $this->registerHook('displayCustomerLoginFormAfter')
             && empty($this->updateFieldsValue());
     }
 
@@ -229,18 +230,17 @@ class Od_send_email extends Module
 
     public function hookDisplayCustomerAccount()
     {
-        $this->context->smarty->assign([
-            'button' => $this->l('Enviar email'),
-            'miVariable' => Context::getContext()->link->getModuleLink('od_send_email', 'sender', array())
-        ]);
-        // todo metodo para los dos hooks
-        return $this->display(__FILE__, 'od_send_email.tpl');
+        return $this->displayTpl();
+    }
+
+    public function hookDisplayCustomerLoginFormAfter()
+    {
+        return $this->displayTpl();
     }
 
     public function hookActionFrontControllerSetMedia()
     {
-        dump($this->context->controller->php_self);
-        if ($this->context->controller->php_self != "my-account") {
+        if ($this->context->controller->php_self != "my-account" && $this->context->controller->php_self != "authentication") {
             return;
         }
 
@@ -264,4 +264,21 @@ class Od_send_email extends Module
             ]
         );
     }
+
+    /**
+     * display the tpl
+     * 
+     * @return string
+     */
+
+    public function displayTpl()
+    {
+        $this->context->smarty->assign([
+            'button' => $this->l('Enviar email'),
+            'miVariable' => Context::getContext()->link->getModuleLink('od_send_email', 'sender', array())
+        ]);
+
+        return $this->display(__FILE__, 'od_send_email.tpl');
+    }
+
 }
